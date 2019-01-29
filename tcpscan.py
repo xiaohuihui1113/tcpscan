@@ -16,6 +16,7 @@ METHOD = 1  # 0是调用socket扫描，1是调用telnet扫描
 OPEN_PORTS = 0
 OPEN_HOSTS = []
 DOMAIN = False
+FILE = False
 SIGNS = (
     #协议 | 版本 | 关键字
     b'smb|smb|^\0\0\0.\xffSMBr\0\0\0\0.*',
@@ -195,7 +196,7 @@ def ReadFile(file):
     with open(file, 'rt') as f:
         ips = f.readlines()
         for i in ips:
-            start = ScanPort([i.strip()], METHOD, THREADNUM).run()
+            start = ScanPort(i.strip(), METHOD, THREADNUM).run()
 
 
 class ScanPort():
@@ -265,11 +266,13 @@ class ScanPort():
         global DOMAIN
         if DOMAIN == True:
             ipaddr = [socket.gethostbyname(self.ipaddr)]
+        elif re.search('/', self.ipaddr):
+            ipaddr = list(ipaddress.ip_network(self.ipaddr).hosts())
         else:
-            ipaddr = list(ipaddress.ip_network(self.ipaddr))
+            ipaddr = [self.ipaddr]
         try:
             with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=20) as executor:
+                    max_workers=10) as executor:
                 executor.map(self.Scan, ipaddr)
         except EOFError:
             pass
