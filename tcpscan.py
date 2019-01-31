@@ -9,14 +9,13 @@ import sys
 import argparse
 import random
 import os
+import json
 sys.path.append(os.getcwd())
 
 THREADNUM = 200  #线程数
-METHOD = 1  # 0是调用socket扫描，1是调用telnet扫描
+METHOD = 0  # 0是调用socket扫描，1是调用telnet扫描
 OPEN_PORTS = 0
 OPEN_HOSTS = []
-DOMAIN = False
-FILE = False
 SIGNS = (
     #协议 | 版本 | 关键字
     b'smb|smb|^\0\0\0.\xffSMBr\0\0\0\0.*',
@@ -141,54 +140,75 @@ SIGNS = (
     b'webmin|webmin|^0\.0\.0\.0:.*:[0-9]',
     b'websphere-javaw|websphere-javaw|^\x15\x00\x00\x00\x02\x02\x0a',
     b'smb|smb|^\x83\x00\x00\x01\x8f',
+    b'docker-daemon|docker-daemon|^\x15\x03\x01\x00\x02\x02',
     b'mongodb|mongodb|MongoDB',
-    b'rsync|rsync|@RSYNCD:',
-    b'mssql|mssql|MSSQLSERVER',
-    b'vmware|vmware|VMware',
+    b'Rsync|Rsync|@RSYNCD:',
+    b'Squid|Squid|X-Squid-Error',
+    b'mssql|Mssql|MSSQLSERVER',
+    b'Vmware|Vmware|VMware',
+    b'iscsi|iscsi|\x00\x02\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
     b'redis|redis|^-ERR unknown command',
     b'redis|redis|^-ERR wrong number of arguments',
     b'redis|redis|^-DENIED Redis is running',
     b'memcached|memcached|^ERROR\r\n',
-    b'websocket|websocket|^HTTP.*?websocket',
+    b'websocket|websocket|Server: WebSocket',
+    b'https|https|Instead use the HTTPS scheme to access'
+    b'https|https|HTTPS port',
+    b'https|https|Location: https',
     b'http|http|^HTTP',
-    b'http|https|^\<!DOCTYPE HTML PUBLIC',
     b'http|topsec|^\x15\x03\x03\x00\x02\x02',
-    b'svn|svn|^\( success \( 2 2 \( \) \( edit-pipeline svndiff1',
+    b'SVN|SVN|^\( success \( 2 2 \( \) \( edit-pipeline svndiff1',
     b'dubbo|dubbo|^Unsupported command',
     b'http|elasticsearch|cluster_name.*elasticsearch',
+    b'RabbitMQ|RabbitMQ|^AMQP\x00\x00\t\x01',
 )
 
-port_list = [
-    7, 11, 13, 15, 17, 19, 21, 22, 23, 25, 26, 37, 47, 49, 53, 69, 70, 79, 80,
-    81, 82, 83, 84, 88, 102, 104, 110, 111, 113, 119, 123, 129, 135, 137, 139,
-    143, 161, 175, 179, 195, 311, 389, 443, 444, 445, 465, 500, 502, 503, 512,
-    513, 514, 515, 520, 523, 530, 548, 554, 563, 587, 593, 623, 626, 631, 636,
-    660, 666, 749, 751, 771, 789, 873, 901, 902, 990, 992, 993, 995, 1000,
-    1010, 1023, 1024, 1025, 1080, 1088, 1099, 1111, 1177, 1200, 1234, 1311,
-    1400, 1433, 1434, 1471, 1515, 1521, 1599, 1604, 1723, 1741, 1777, 1883,
-    1900, 1911, 1962, 1991, 2000, 2049, 2067, 2081, 2082, 2083, 2086, 2087,
-    2123, 2152, 2181, 2222, 2323, 2332, 2333, 2375, 2376, 2379, 2404, 2455,
-    2480, 2601, 2604, 2628, 3000, 3001, 3128, 3260, 3269, 3283, 3299, 3306,
-    3310, 3311, 3312, 3333, 3386, 3388, 3389, 3460, 3478, 3493, 3541, 3542,
-    3689, 3690, 3702, 3749, 3780, 3784, 3790, 4000, 4022, 4040, 4063, 4064,
-    4070, 4200, 4343, 4369, 4440, 4443, 4444, 4500, 4567, 4664, 4730, 4782,
-    4786, 4800, 4840, 4848, 4911, 4949, 5000, 5001, 5006, 5007, 5008, 5009,
-    5060, 5094, 5222, 5269, 5353, 5357, 5431, 5432, 5433, 5555, 5560, 5577,
-    5601, 5632, 5672, 5683, 5800, 5801, 5858, 5900, 5901, 5938, 5984, 5985,
-    5986, 6000, 6001, 6082, 6379, 6664, 6666, 6667, 6881, 6969, 7000, 7001,
-    7002, 7071, 7218, 7474, 7547, 7548, 7549, 7657, 7777, 7779, 8000, 8001,
-    8008, 8009, 8010, 8060, 8069, 8080, 8081, 8083, 8086, 8087, 8088, 8089,
-    8090, 8098, 8099, 8112, 8126, 8139, 8140, 8181, 8191, 8200, 8307, 8333,
-    8334, 8443, 8554, 8649, 8800, 8834, 8880, 8883, 8888, 8889, 8899, 9000,
-    9001, 9002, 9009, 9042, 9050, 9051, 9080, 9090, 9092, 9100, 9151, 9160,
-    9191, 9200, 9300, 9306, 9418, 9443, 9595, 9600, 9869, 9943, 9944, 9981,
-    9998, 9999, 10000, 10001, 10243, 10554, 11211, 11300, 12345, 13579, 14147,
-    16010, 16992, 16993, 17000, 18081, 18245, 20000, 20547, 21025, 21379,
-    21546, 22022, 23023, 23424, 23389, 25105, 25565, 27015, 27016, 27017,
-    27018, 27019, 28015, 28017, 30000, 30718, 32400, 32764, 32768, 32769,
-    32770, 32771, 33389, 33890, 33899, 37777, 44818, 47808, 48899, 49152,
-    49153, 50000, 50030, 50050, 50070, 50100, 51106, 53413, 54138, 55443,
-    55553, 55554, 62078, 64738, 65535
+# response1 = b'HTTP/1.1 301 Moved Permanently\\r\\nServer: nginx/1.11.13\\r\\nDate: Wed, 30 Jan 2019 08:03:56 GMT\\r\\nContent-Type: text/html\\r\\nContent-Length: 186\\r\\nConnection: keep-alive\\r\\nLocation: https://144.202.127.156/\\r\\n\\r\\n<html>\\r\\n<head><title>301 Moved Permanently</title></head'
+
+# for pattern in SIGNS:
+#     pattern = pattern.split(b'|')
+#     if re.search(pattern[-1], response1, re.IGNORECASE):
+#         proto = pattern[1].decode()
+#         break
+# print(proto)
+web_port = [80, 81, 443, 8000, 8080, 3000]
+exp_port = [
+    21, 22, 23, 80, 81, 88, 443, 445, 512, 873, 1025, 1080, 1433, 1521, 2222,
+    3128, 3306, 3389, 3690, 4400, 4848, 5432, 5984, 5900, 5984, 6379, 7001,
+    7002, 8000, 8080, 8081, 8089, 8443, 8888, 9000, 9043, 9090, 9200, 9300,
+    10000, 11211, 27017, 27018, 28017, 33899, 33890, 50000, 50070, 50030, 50060
+]
+large_port = [
+    21, 22, 23, 25, 26, 37, 47, 49, 53, 69, 70, 79, 80, 81, 82, 83, 84, 88,
+    102, 104, 110, 111, 113, 119, 123, 129, 135, 137, 139, 143, 161, 175, 179,
+    195, 311, 389, 443, 444, 445, 465, 500, 502, 503, 512, 513, 514, 515, 520,
+    523, 530, 548, 554, 563, 587, 593, 623, 626, 631, 636, 660, 666, 749, 751,
+    771, 789, 873, 901, 902, 990, 992, 993, 995, 1000, 1010, 1023, 1024, 1025,
+    1080, 1088, 1099, 1111, 1177, 1200, 1234, 1311, 1400, 1433, 1434, 1471,
+    1515, 1521, 1599, 1604, 1723, 1741, 1777, 1883, 1900, 1911, 1962, 1991,
+    2000, 2049, 2067, 2081, 2082, 2083, 2086, 2087, 2123, 2152, 2181, 2222,
+    2323, 2332, 2333, 2375, 2376, 2379, 2404, 2455, 2480, 2601, 2604, 2628,
+    3000, 3001, 3128, 3260, 3269, 3283, 3299, 3306, 3310, 3311, 3312, 3333,
+    3386, 3388, 3389, 3460, 3478, 3493, 3541, 3542, 3689, 3690, 3702, 3749,
+    3780, 3784, 3790, 4000, 4022, 4040, 4063, 4064, 4070, 4200, 4343, 4369,
+    4440, 4443, 4444, 4500, 4567, 4664, 4730, 4782, 4786, 4800, 4840, 4848,
+    4911, 4949, 5000, 5001, 5006, 5007, 5008, 5009, 5060, 5094, 5222, 5269,
+    5353, 5357, 5431, 5432, 5433, 5555, 5560, 5577, 5601, 5632, 5672, 5683,
+    5800, 5801, 5858, 5900, 5901, 5938, 5984, 5985, 5986, 6000, 6001, 6082,
+    6379, 6664, 6666, 6667, 6881, 6969, 7000, 7001, 7002, 7071, 7218, 7474,
+    7547, 7548, 7549, 7657, 7777, 7779, 8000, 8001, 8008, 8009, 8010, 8060,
+    8069, 8080, 8081, 8083, 8086, 8087, 8088, 8089, 8090, 8098, 8099, 8112,
+    8126, 8139, 8140, 8181, 8191, 8200, 8307, 8333, 8334, 8443, 8554, 8649,
+    8800, 8834, 8880, 8883, 8888, 8889, 8899, 9000, 9001, 9002, 9009, 9042,
+    9050, 9051, 9080, 9090, 9092, 9100, 9151, 9160, 9191, 9200, 9300, 9306,
+    9418, 9443, 9595, 9600, 9869, 9943, 9944, 9981, 9998, 9999, 10000, 10001,
+    10243, 10554, 11211, 11300, 12345, 13579, 14147, 16010, 16992, 16993,
+    17000, 18081, 18245, 20000, 20547, 21025, 21379, 21546, 22022, 23023,
+    23424, 23389, 25105, 25565, 27015, 27016, 27017, 27018, 27019, 28015,
+    28017, 30000, 30718, 32400, 32764, 32768, 32769, 32770, 32771, 33389,
+    33890, 33899, 37777, 44818, 47808, 48899, 49152, 49153, 50000, 50030,
+    50050, 50070, 50100, 51106, 53413, 54138, 55443, 55553, 55554, 62078,
+    64738, 65535
 ]
 
 
@@ -204,16 +224,23 @@ class ScanPort():
         self.THREADNUM = THREADNUM
         self.ipaddr = ipaddr
         self.method = METHOD
+        self.isDomain = False
 
     def SockPort(self, hosts):
-        global OPEN_PORTS, OPEN_HOSTS, SIGNS
+        global OPEN_PORTS, OPEN_HOSTS, SIGNS, DOMAIN
         socket.setdefaulttimeout(1)
         ip = hosts[0]
         port = hosts[1]
         response1 = b''
         proto = 'Unknow'
         payload = 'X' * int(random.random() * 100)
-        payload1 = ('GET / HTTP/1.1\r\nHOST: %s\r\n\r\n' % ip)
+        if self.isDomain:
+            host = self.ipaddr
+        else:
+            host = ip
+        payload1 = (
+            'GET / HTTP/1.1\r\nHOST: %s\r\nUser-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 8_3 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Version/8.0 Mobile/12F70 Safari/600.1.4\r\nAccept: text/html\r\nCookie: adminUser=123\r\n\r\n'
+            % host)
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             result = sock.connect_ex((ip, port))
@@ -221,13 +248,32 @@ class ScanPort():
                 OPEN_HOSTS.append(ip)
                 OPEN_PORTS += 1
                 sock.sendall(payload1.encode())
-                response1 = sock.recv(256)
+                response1 = sock.recv(512)
                 for pattern in SIGNS:
                     pattern = pattern.split(b'|')
                     if re.search(pattern[-1], response1, re.IGNORECASE):
                         proto = pattern[1].decode()
                         break
-                sys.stdout.write("%s\t%s\t%s\n" % (ip, port, proto))
+                sys.stdout.write(
+                    "%s\t%s\t%s\t%s\n" % (ip, port, proto, response1))
+                if self.isDomain:
+                    data = {
+                        'domain': self.ipaddr,
+                        'ip': ip,
+                        'port': port,
+                        'proto': proto,
+                        'payload': str(response1)
+                    }
+                else:
+                    data = {
+                        'ip': ip,
+                        'port': port,
+                        'proto': proto,
+                        'payload': str(response1)
+                    }
+                with open(self.ipaddr.replace('/', '_') + '.json', 'a') as f:
+                    json.dump(data, f)
+                    f.write('\n')
 
         except:
             raise
@@ -248,10 +294,9 @@ class ScanPort():
 
     def Scan(self, ip):
         hosts = []
-        global port_list
-        for i in port_list:
+        global large_port
+        for i in large_port:
             hosts.append([str(ip), i])
-        # print(len(hosts))
         try:
             with concurrent.futures.ThreadPoolExecutor(
                     max_workers=self.THREADNUM) as executor:
@@ -263,13 +308,13 @@ class ScanPort():
             pass
 
     def run(self):
-        global DOMAIN
-        if DOMAIN == True:
-            ipaddr = [socket.gethostbyname(self.ipaddr)]
-        elif re.search('/', self.ipaddr):
+        if re.search('/', self.ipaddr):
             ipaddr = list(ipaddress.ip_network(self.ipaddr).hosts())
-        else:
+        elif re.search('\d+\.\d+\.\d+\.\d+', self.ipaddr):
             ipaddr = [self.ipaddr]
+        else:
+            self.isDomain = True
+            ipaddr = [socket.gethostbyname(self.ipaddr)]
         try:
             with concurrent.futures.ThreadPoolExecutor(
                     max_workers=10) as executor:
@@ -303,11 +348,10 @@ if __name__ == '__main__':
     if type(args.thread) == 'int' and args.thread > 0:
         THREADNUM = args.thread
     if args.port:
-        port_list = args.port.split(',')
+        large_port = args.port.split(',')
     if args.file:
         ReadFile(args.file)
     if args.domain:
-        DOMAIN = True
         start = ScanPort(args.domain, METHOD, THREADNUM).run()
     if args.ip:
         start = ScanPort(args.ip, METHOD, THREADNUM).run()
