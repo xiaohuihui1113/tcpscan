@@ -1,6 +1,6 @@
 # tcpscan
 
-一个用python3写的端口扫描小脚本,主要数用socket和telnetlib,支持开放服务探测,输出为json格式。
+一个用python3写的端口扫描小脚本,主要使用socket和telnetlib,支持开放服务探测,输出为json格式。
 ### help
 
     Tcp PortScan V1.0 
